@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
+knitr::opts_knit$set(root.dir = 'C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport')
 ```
 
 ## R Markdown
@@ -16,8 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(cowplot)
 library(RColorBrewer)
-
-setwd('C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport/')
+library(knitr)
 ```
 
 # import data
@@ -67,5 +66,24 @@ seed_morphometrics <- morph_mass %>%
 ```{r morph mass Ws}
 ws_morph_mass <- morph_mass  %>%
   full_join(seed_ws, by ='group')
+```
+
+
+```{r summary table}
+seed_ws_morphometrics <- read_csv("data/seed_ws_morphometrics.csv")
+
+seed_morph_summary <- seed_ws_morphometrics %>%
+  mutate(site_num = substr(group, 1,2)) %>%
+  group_by(site_num) %>%
+  summarise(
+    mean_width_cm = mean(mean_width_cm),
+    mean_density = mean(density_gcm3),
+    mean_ws_ms = mean(ws_ms.mean),
+  )
+
+seed_morph_summary %>%
+  kbl(caption = "Summary stats of seed traits") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
 ```
 
