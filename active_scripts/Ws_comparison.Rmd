@@ -7,13 +7,12 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport')
 ```
 
 ```{r libraries}
 library(tidyverse)
 library(progress)
-
-setwd('C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport/')
 ```
 
 
@@ -77,8 +76,8 @@ obs_data <- seed_ws_morphometrics %>%
          g = 9.81,
          nu = 1.0e-6)
 
-C1_values <- seq(0, 20000, by = 50)  
-C2_values <- seq(0, 20000, by = 50)
+C1_values <- seq(0, 1000, by = 10)
+C2_values <- seq(0, 30000, by = 100)
 parameter_grid <- expand.grid(C1 = C1_values, C2 = C2_values)
 
 pb <- progress_bar$new(
@@ -113,12 +112,25 @@ obs_calc <- obs_data %>%
   mutate(Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
            (100 * nu + sqrt(0.75 * C2_best * density_kgm3 * g * diameter_m^3)))
 
-ggplot(obs_calc, aes(x = ws_ms.mean, y = Ws_FC_ms)) +
-  geom_point(color = "blue") +
-  geom_smooth(method = 'lm')+
-  labs(title = "Observed vs. Calculated Settling Velocities",
-       x = "Observed Settling Velocity (m/s)",
-       y = "Calculated Settling Velocity (m/s)") +
+```
+
+# compariosn plotting 
+```{r plotting}
+
+# Reshape the data for easier plotting
+obs_calc_long <- obs_calc %>%
+  pivot_longer(cols = c(ws_ms.mean, Ws_FC_ms),
+               names_to = "Type",
+               values_to = "Settling_Velocity")
+
+# Plot the density plot comparing observed vs calculated settling velocities
+ggplot(obs_calc_long, aes(x = Settling_Velocity, fill = Type)) + 
+  geom_density(alpha = 0.5, color = "black") +  # alpha for transparency
+  labs(title = "Density Plot of Observed vs. Calculated Settling Velocities",
+       x = "Settling Velocity (m/s)",
+       y = "Density") +
+  scale_fill_manual(values = c("blue", "red"), labels = c("Observed", "Calculated")) +
   theme_minimal()
 
 ```
+
