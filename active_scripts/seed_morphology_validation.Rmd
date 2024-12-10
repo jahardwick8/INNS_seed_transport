@@ -1,0 +1,142 @@
+---
+title: "Seed morphology validation"
+author: "James Hardwick"
+date: "2024-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport')
+```
+# Introduction:
+*Traitor* (Dayrell et al., 2023) was used to bulk process collected *Impatiens glandulifera* seeds for morphometric analysis. Each *Impatiens glandulifera* seed group was scanned on a high contrast surface and then morphology was extracted. Written in python using OpenCV and scikit-learn packages, each seed was extracted, aligned and measured. We validated *Traitor* based seed measurements with a manually measured 15 % subset (n ~ 180 seeds)using length and width as validation metrics. To quantify the degree of correlation between *Traitor* and manual seed width and length measurements Concordance Correlation Coefficient (CCC) was used - implemented with the *DescTools* library (Signorell, 2024). The code written below shows how CCC was calculated and provides validation plots. 
+
+**Overall CCC values are:**
+ - Length: 	*pc* = 0.57 (95 % CI [0.20 - 0.80]) 
+ - Width:   *pc* = 0.88 (95 % CI [0.72 - 0.95])
+ 
+ 
+
+# Libraries used:
+```{r libraries, warning=FALSE}
+library(tidyverse)
+library(cowplot)
+library(DescTools)
+```
+
+
+# data import and tyiding
+```{r data import and tiyding}
+
+morphology_validation_data <- read_csv("data/morphology_validation_data.csv")
+
+```
+
+
+# quantifiying validation 
+```{r quantifying correaltion}
+validation.length <- morphology_validation_data %>%
+  select(group, manunal_length, traitor_length) %>%
+  group_by(group) %>%
+  summarise(mean_manunal_length = mean(manunal_length, na.rm = TRUE),
+            mean_traitor_length = mean(traitor_length, na.rm = TRUE)) %>%
+  filter(mean_traitor_length > 3)
+
+# Assign variables
+length.manunal <- validation.length$mean_manunal_length
+length.traitor <- validation.length$mean_traitor_length
+
+# length 
+# Compute CCC with confidence intervals
+length_ccc_result <- DescTools::CCC(
+  x = length.manunal,
+  y = length.traitor,
+  ci = "z-transform",
+  conf.level = 0.95
+)
+
+# Extract and round CCC and CI values
+if (!is.null(length_ccc_result)) {
+  length_pc <- round(as.numeric(length_ccc_result$rho.c), 2)  # CCC estimate
+  length_ci_lower <- round(as.numeric(length_ccc_result$ci.lower), 2)  # Lower CI
+  length_ci_upper <- round(as.numeric(length_ccc_result$ci.upper), 2)  # Upper CI
+  
+  # Combine into a CI string
+  length_ci <- paste0("(", length_ci_lower, "-", length_ci_upper, ")")
+  
+  # Print result
+  list(CCC = length_pc, Confidence_Interval = length_ci)
+} else {
+  stop("CCC computation failed: No result returned.")
+}
+
+# width 
+# Summarize mean values for width
+validation.width <- morphology_validation_data %>%
+  select(group, manunal_width, traitor_width) %>%
+  group_by(group) %>%
+  summarise(mean_manunal_width = mean(manunal_width, na.rm = TRUE),
+            mean_traitor_width = mean(traitor_width, na.rm = TRUE)) %>%
+  filter(mean_traitor_width > 2)
+
+# Assign variables
+width.manunal <- validation.width$mean_manunal_width
+width.traitor <- validation.width$mean_traitor_width
+# Compute CCC with confidence intervals
+width_ccc_result <- DescTools::CCC(
+  x = width.manunal,
+  y = width.traitor,
+  ci = "z-transform",
+  conf.level = 0.95
+)
+
+# Extract and round CCC and CI values
+if (!is.null(width_ccc_result)) {
+  width_pc <- round(as.numeric(width_ccc_result$rho.c), 2)  # CCC estimate
+  width_ci_lower <- round(as.numeric(width_ccc_result$ci.lower), 2)  # Lower CI
+  width_ci_upper <- round(as.numeric(width_ccc_result$ci.upper), 2)  # Upper CI
+  
+  # Combine into a CI string
+  width_ci <- paste0("(", width_ci_lower, "-", width_ci_upper, ")")
+  
+  # Print result
+  list(CCC = width_pc, Confidence_Interval = width_ci)
+} else {
+  stop("CCC computation failed: No result returned.")
+}
+
+```
+
+
+# plotting validation data   
+```{r validation plots}
+ 
+  validation_length.plot <- ggplot(morphology_validation_data, aes(manunal_length, traitor_length))+
+    geom_point()+
+    geom_abline(intercept = 0, slope = 1, linetype = 'dashed')+
+    ylim(0, NA)+
+    xlim(0, NA)+
+    xlab("Length Traitor (mm)")+
+    ylab("Length Traitor (mm)")+
+    annotate("text", x = 5, y = 1, label = "Pc 0.57 (95% CI)")+
+    theme_bw()
+  
+  validation_width.plot <- ggplot(morphology_validation_data, aes(manunal_width, traitor_width))+
+    geom_point()+
+    geom_abline(intercept = 0, slope = 1, linetype = 'dashed')+
+    ylim(0, NA)+
+    xlim(0, NA)+
+    xlab("Width Traitor (mm)")+
+    ylab("Width Traitor (mm)")+
+    annotate("text", x = 3.5, y = 0.5, label = "0.88 (95% CI)")+
+    theme_bw()
+  
+  plot_grid(validation_length.plot, validation_width.plot, ncol = 1)
+
+```
+
+
+
+
+
