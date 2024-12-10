@@ -10,13 +10,19 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = 'C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport')
 ```
 
+
+# Introduction:
+
+This scripts takes morphmetric variable outputs from the *Traitor* python package (Dayrell et al., 2024) to calculate mean trait variables for Impatiens glandulifera seeds collected along the River Calder, West Yorkshire.Also, some additional morphometric variables, e.g. seed density and volume, are derived.  
+
+
 ## R Markdown
 
-```{r libraries}
+```{r libraries, warning=FALSE}
 library(tidyverse)
 library(cowplot)
 library(RColorBrewer)
-library(knitr)
+library(kableExtra)
 ```
 
 # import data
@@ -72,18 +78,28 @@ ws_morph_mass <- morph_mass  %>%
 ```{r summary table}
 seed_ws_morphometrics <- read_csv("data/seed_ws_morphometrics.csv")
 
+seed_ws_morphometrics <- read_csv("data/seed_ws_morphometrics.csv")
 seed_morph_summary <- seed_ws_morphometrics %>%
-  mutate(site_num = substr(group, 1,2)) %>%
+  mutate(site_num = substr(group, 1, 2)) %>%
   group_by(site_num) %>%
   summarise(
-    mean_width_cm = mean(mean_width_cm),
-    mean_density = mean(density_gcm3),
-    mean_ws_ms = mean(ws_ms.mean),
+    mean_width_cm = mean(mean_width_cm, na.rm = TRUE),
+    sd_width_cm = ifelse(n() > 1, sd(mean_width_cm, na.rm = TRUE), NA),
+    range_width_cm = diff(range(mean_width_cm, na.rm = TRUE)),
+    
+    mean_density = mean(density_gcm3, na.rm = TRUE),
+    sd_density = ifelse(n() > 1, sd(density_gcm3, na.rm = TRUE), NA),
+    range_density = diff(range(density_gcm3, na.rm = TRUE)),
+    
+    mean_ws_ms = mean(ws_ms.mean, na.rm = TRUE),
+    sd_ws_ms = ifelse(n() > 1, sd(ws_ms.mean, na.rm = TRUE), NA),
+    range_ws_ms = diff(range(ws_ms.mean, na.rm = TRUE))
   )
 
 seed_morph_summary %>%
   kbl(caption = "Summary stats of seed traits") %>%
-  kable_classic(full_width = F, html_font = "Cambria")
+  kable_styling()
+
 
 ```
 
