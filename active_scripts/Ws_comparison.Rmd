@@ -1,0 +1,17 @@
+---
+title: "Settling velocity comparison"
+author: "James Hardwick"
+date: "2024-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(tidyverse)
+
+setwd('C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport/')
+```
+
