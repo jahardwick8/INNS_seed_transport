@@ -1,0 +1,80 @@
+---
+title: "Seed Settling Velocity"
+author: "James Hardwick"
+date: "2024-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Seed settling velocity from observations
+
+
+
+
+
+```{r libraries}
+library(tidyverse)
+```
+
+```{r}
+
+seeds_velocity_raw_final <- read_csv("seeds_velocity_raw_final.csv")
+
+group_count <- seeds_velocity_raw %>%
+  select(group) %>%
+  group_by(group)%>%
+  summarise(freq =frequency(group))
+
+
+
+# import all .csv files from the settling experiments 
+seeds_velocity_raw <- read_bulk(directory = "data_velocity_raw",
+                                extension = ".csv")%>%
+  select(-File) %>%
+  mutate(seed_number = as.character(seed_number),
+         site = substr(site_code, 1, 2))%>%
+  mutate_at(c("time_sec", "x_cm", "y_cm"), as.numeric) %>%
+  drop_na()
+
+seeds_velocity_raw <- seeds_velocity_raw_final%>%
+  mutate(seed_number = as.character(seed_number),
+         site = substr(site_code, 1, 2))%>%
+  mutate_at(c("time_sec", "x_cm", "y_cm"), as.numeric) %>%
+  drop_na()
+
+
+
+
+
+# creates a new df containing Ws and corrects for incorrect calibration factor in group 1
+seed_ws <- seeds_velocity_raw %>%
+  group_by(site, group, seed_number) %>%
+  summarise(y_displacement = max(y_cm) - min(y_cm),
+            time_s =  max(time_sec) - min(time_sec)) %>%
+  mutate(ws_cms = y_displacement/time_s,
+         ws_mms = ws_cms * 10,
+         ws_ms = ws_cms/ 100) %>%
+  group_by(site, group) %>%
+  summarise(ws_cms.mean = mean(ws_cms),
+            ws_mms.mean = mean(ws_mms),
+            ws_ms.mean = mean(ws_ms))
+
+  mutate(ws_ms = ifelse(site == "C1" & ws_ms > 0.021, ws_ms/20, ws_ms),
+         ws_ms =ifelse(site == "C3" & ws_ms < 0.015, ws_ms * 1.5, ws_ms))  
+
+# box plot of ws by site - raw data 
+ggplot(seed_ws, aes(x = ws_ms.mean, fill = site))+
+  geom_histogram()+
+  scale_fill_brewer(palette = 'Dark2')+
+  theme_classic()+
+  theme(text = element_text(size=20))
+
+
+seed_Ws_updated <- seed_ws
+write.csv(seed_Ws_updated, 'seed_Ws_updated.csv')
+
+```
+
