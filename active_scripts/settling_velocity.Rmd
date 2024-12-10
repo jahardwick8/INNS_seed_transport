@@ -65,29 +65,6 @@ ggplot(seed_ws, aes(x = ws_ms.mean, fill = site))+
 ```
 
 
-## Comparison with Ferguson and Church (2004)
-
-```{r load morphometric data and join with Ws}
-
-```
-
-# calcualte Ws based of Ferguson and Church (2004)
-
-```{r Ferguson and Church (2004)}
-
-obs_calc_ws <- ws_morph_mass %>%
-  #convert units
-  mutate(density_kgm3 = density * 1000,
-         diameter_m = width/1000,
-         # setting constants for ws formula
-         g = 9.81,
-         C1 = ,
-         C2 = ,
-         nu = 1.0e-6,
-         Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
-                       (C1 * nu + sqrt(0.75 * C2 * density_kgm3 * g * diameter_m^3)))
-
-```
 
 
 

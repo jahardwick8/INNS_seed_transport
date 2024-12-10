@@ -11,7 +11,114 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r libraries}
 library(tidyverse)
+library(progress)
 
 setwd('C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport/')
 ```
 
+
+## Data import and tiyding
+
+```{r data import}
+# seed morphology data 
+seed_morphology_raw <- read_csv("data/seed_morphology_raw.csv")
+
+seed_morphology <-seed_morphology_raw %>%
+  group_by(group) %>%
+  filter(length < 7.5) %>%
+  summarise(mean_length_cm = mean(length)/10,
+            mean_width_cm = mean(width)/10,
+            mean_area_cm2 = mean(area)/10,
+            mean_circularity = mean(circularity),
+            mean_solidity = mean(solidity)) %>%
+  mutate(group = tolower(group))
+
+# seed mass data 
+seed_mass <- read_csv("data/seed_mass.csv") %>%
+  group_by(group)%>%
+  summarise(mean_mass_g = mean(mass_g),
+            mean_mass_mg = mean(mass_mg)) %>%
+  mutate(group = tolower(group))
+
+
+# seed settling velocity data 
+seed_ws <- read_csv("data/seed_ws.csv", col_types = cols(...1 = col_skip())) 
+  
+seed_ws <- seed_ws %>%
+  mutate(group = tolower(group))
+```
+
+```{r table join}
+
+morph_mass <- seed_morphology %>%
+  full_join(seed_mass, by = "group")
+
+ws_morph_mass <- morph_mass  %>%
+  full_join(seed_ws, by ='group')
+```
+
+
+# calucalte seed density
+```{r}
+seed_ws_morphometrics <- ws_morph_mass %>%
+ mutate(volume_cm3 = (4/3 * pi * (mean_width_cm/3)^3),
+         density_gcm3 = mean_mass_g/volume_cm3)
+```
+
+
+
+# calcualte Ws based of Ferguson and Church (2004)
+
+```{r Ferguson and Church (2004)}
+obs_data <- seed_ws_morphometrics %>%
+  mutate(density_kgm3 = density_gcm3 * 1000,
+         diameter_m = mean_width_cm / 100,
+         R = (density_kgm3 - 1000)/1000,
+         g = 9.81,
+         nu = 1.0e-6)
+
+C1_values <- seq(0, 20000, by = 50)  
+C2_values <- seq(0, 20000, by = 50)
+parameter_grid <- expand.grid(C1 = C1_values, C2 = C2_values)
+
+pb <- progress_bar$new(
+  format = "  Progress [:bar] :percent (:elapsed)",
+  total = nrow(parameter_grid),
+  clear = FALSE,
+  width = 60
+)
+
+calculate_correlation <- function(C1, C2) {
+  pb$tick() 
+  
+  obs_calc <- obs_data %>%
+    mutate(Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
+             (C1 * nu + sqrt(0.75 * C2 * density_kgm3 * g * diameter_m^3)))
+  
+  cor(obs_calc$ws_ms.mean, obs_calc$Ws_FC_ms, use = "complete.obs")
+}
+
+results <- parameter_grid %>%
+  mutate(correlation = map2_dbl(C1, C2, calculate_correlation))
+
+best_fit <- results %>%
+  arrange(desc(correlation)) %>%
+  slice(1)
+
+print(best_fit)
+
+C2_best <- best_fit$C2
+
+obs_calc <- obs_data %>%
+  mutate(Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
+           (100 * nu + sqrt(0.75 * C2_best * density_kgm3 * g * diameter_m^3)))
+
+ggplot(obs_calc, aes(x = ws_ms.mean, y = Ws_FC_ms)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = 'lm')+
+  labs(title = "Observed vs. Calculated Settling Velocities",
+       x = "Observed Settling Velocity (m/s)",
+       y = "Calculated Settling Velocity (m/s)") +
+  theme_minimal()
+
+```
