@@ -18,7 +18,7 @@ setwd('C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport
 ```
 
 
-
+## Data import and tiyding 
 ```{r data import and tidying}
 
 seeds_velocity_raw_final <- read_csv("C:/Users/jahar/Documents/Seed_transport_py/R_analysis/INNS_seed_transport/data/seeds_velocity_raw_final.csv")
@@ -34,11 +34,9 @@ seeds_velocity_raw <- seeds_velocity_raw_final%>%
          site = substr(site_code, 1, 2))%>%
   mutate_at(c("time_sec", "x_cm", "y_cm"), as.numeric) %>%
   drop_na()
-
 ```
 
-
-
+# calucalting seed Ws and unit conversion 
 ```{r calcualting Ws}
 seed_ws <- seeds_velocity_raw %>%
   group_by(site, group, seed_number) %>%
@@ -51,9 +49,12 @@ seed_ws <- seeds_velocity_raw %>%
   summarise(ws_cms.mean = mean(ws_cms),
             ws_mms.mean = mean(ws_mms),
             ws_ms.mean = mean(ws_ms))
+
+write.csv(seed_ws, 'seed_ws.csv')
 ```
 
 
+# plotting Ws by group
 ```{r}
 # box plot of ws by site - raw data 
 ggplot(seed_ws, aes(x = ws_ms.mean, fill = site))+
@@ -64,7 +65,29 @@ ggplot(seed_ws, aes(x = ws_ms.mean, fill = site))+
 ```
 
 
+## Comparison with Ferguson and Church (2004)
 
+```{r load morphometric data and join with Ws}
+
+```
+
+# calcualte Ws based of Ferguson and Church (2004)
+
+```{r Ferguson and Church (2004)}
+
+obs_calc_ws <- ws_morph_mass %>%
+  #convert units
+  mutate(density_kgm3 = density * 1000,
+         diameter_m = width/1000,
+         # setting constants for ws formula
+         g = 9.81,
+         C1 = ,
+         C2 = ,
+         nu = 1.0e-6,
+         Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
+                       (C1 * nu + sqrt(0.75 * C2 * density_kgm3 * g * diameter_m^3)))
+
+```
 
 
 
