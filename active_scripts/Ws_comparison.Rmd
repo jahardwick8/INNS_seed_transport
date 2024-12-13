@@ -15,69 +15,51 @@ library(tidyverse)
 library(progress)
 ```
 
-
-## Data import and tiyding
-
-```{r data import}
-# seed morphology data 
+## updated code chunk 
+```{r}
 seed_morphology_raw <- read_csv("data/seed_morphology_raw.csv")
 
 seed_morphology <-seed_morphology_raw %>%
   group_by(group) %>%
-  filter(length < 7.5) %>%
-  summarise(mean_length_cm = mean(length)/10,
-            mean_width_cm = mean(width)/10,
-            mean_area_cm2 = mean(area)/10,
+  summarise(mean_length_m = mean(length)/1000,
+            mean_width_m = mean(width)/1000,
+            mean_area_m2 = mean(area)/1e-6,
             mean_circularity = mean(circularity),
             mean_solidity = mean(solidity)) %>%
-  mutate(group = tolower(group))
+  mutate(group = tolower(group),
+         SA = substr(group,1,2),
+         volume_m3 = (4/3 * pi * (mean_length_m/2)^3),
+         volume_ellipsoid = 4/3 * pi * mean_length_m * (mean_width_m/2) * (mean_width_m/2))
 
-# seed mass data 
 seed_mass <- read_csv("data/seed_mass.csv") %>%
   group_by(group)%>%
   summarise(mean_mass_g = mean(mass_g),
             mean_mass_mg = mean(mass_mg)) %>%
-  mutate(group = tolower(group))
+  mutate(group = tolower(group),
+         mean_mass_kg = mean_mass_g/1000)
 
-
-# seed settling velocity data 
-seed_ws <- read_csv("data/seed_ws.csv", col_types = cols(...1 = col_skip())) 
-  
 seed_ws <- seed_ws %>%
   mutate(group = tolower(group))
-```
 
-```{r table join}
 
 morph_mass <- seed_morphology %>%
   full_join(seed_mass, by = "group")
 
 ws_morph_mass <- morph_mass  %>%
   full_join(seed_ws, by ='group')
-```
 
-
-# calucalte seed density
-```{r}
 seed_ws_morphometrics <- ws_morph_mass %>%
- mutate(volume_cm3 = (4/3 * pi * (mean_width_cm/3)^3),
-         density_gcm3 = mean_mass_g/volume_cm3)
-```
+  mutate(density_kgm3 = mean_mass_kg/volume_ellipsoid)
 
-
-
-# calcualte Ws based of Ferguson and Church (2004)
-
-```{r Ferguson and Church (2004)}
 obs_data <- seed_ws_morphometrics %>%
-  mutate(density_kgm3 = density_gcm3 * 1000,
-         diameter_m = mean_width_cm / 100,
-         R = (density_kgm3 - 1000)/1000,
-         g = 9.81,
-         nu = 1.0e-6)
+  mutate(#density_kgm3 = density_gcm3 * 1000,
+    diameter_m = mean_width_m,
+    R = density_kgm3/1000,
+    g = 9.81,
+    nu = 1.0e-6)
 
-C1_values <- seq(0, 1000, by = 10)
-C2_values <- seq(0, 30000, by = 100)
+C1_values <- seq(0, 10000, by = 100)
+C2_values <- seq(0, 50000, by = 100)
 parameter_grid <- expand.grid(C1 = C1_values, C2 = C2_values)
 
 pb <- progress_bar$new(
@@ -91,8 +73,8 @@ calculate_correlation <- function(C1, C2) {
   pb$tick() 
   
   obs_calc <- obs_data %>%
-    mutate(Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
-             (C1 * nu + sqrt(0.75 * C2 * density_kgm3 * g * diameter_m^3)))
+    mutate(Ws_FC_ms = (R * g * diameter_m^2) / 
+             (C1 * nu + sqrt(0.75 * C2 * R * g * diameter_m^3)))
   
   cor(obs_calc$ws_ms.mean, obs_calc$Ws_FC_ms, use = "complete.obs")
 }
@@ -104,33 +86,53 @@ best_fit <- results %>%
   arrange(desc(correlation)) %>%
   slice(1)
 
-print(best_fit)
+#print(best_fit)
 
+C1_best <- best_fit$C1
 C2_best <- best_fit$C2
 
 obs_calc <- obs_data %>%
-  mutate(Ws_FC_ms = (density_kgm3 * g * diameter_m^2) / 
-           (100 * nu + sqrt(0.75 * C2_best * density_kgm3 * g * diameter_m^3)))
+  mutate(Ws_FC_ms = (R * g * diameter_m^2) / 
+           (C1_best * nu + sqrt(0.75 * C2_best * R * g * diameter_m^3))) %>%
+  filter(Ws_FC_ms < 0.08 & ws_ms.mean < 0.05)
+
+ggplot(obs_calc, aes(x = ws_ms.mean, y = Ws_FC_ms)) +
+  geom_point() +
+  ylim(0,NA)+
+  xlim(0,NA)+
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed")+
+  theme_linedraw()
+
+RSME_obs_calc <- sqrt(mean(obs_calc$ws_ms.mean - obs_calc$Ws_FC_ms)^2)
+
+Obs_calc.lm <- lm(Ws_FC_ms ~ ws_ms.mean, data = obs_calc)
+summary(Obs_calc.lm)
+
+WS.obs <- obs_calc$ws_ms.mean
+Ws.calc <- obs_calc$Ws_FC_ms
+# Compute CCC with confidence intervals
+WS_ccc_result <- DescTools::CCC(
+  x = WS.obs,
+  y = Ws.calc,
+  ci = "z-transform",
+  conf.level = 0.95
+)
+
+# Extract and round CCC and CI values
+if (!is.null(WS_ccc_result)) {
+  width_pc <- round(as.numeric(WS_ccc_result$rho.c), 2)  # CCC estimate
+  width_ci_lower <- round(as.numeric(WS_ccc_result$ci.lower), 2)  # Lower CI
+  width_ci_upper <- round(as.numeric(WS_ccc_result$ci.upper), 2)  # Upper CI
+  
+  # Combine into a CI string
+  Ws_ci <- paste0("(", width_ci_lower, "-", width_ci_upper, ")")
+  
+  # Print result
+  list(CCC = width_pc, Confidence_Interval = Ws_ci)
+} else {
+  stop("CCC computation failed: No result returned.")
+}
 
 ```
 
-# compariosn plotting 
-```{r plotting}
-
-# Reshape the data for easier plotting
-obs_calc_long <- obs_calc %>%
-  pivot_longer(cols = c(ws_ms.mean, Ws_FC_ms),
-               names_to = "Type",
-               values_to = "Settling_Velocity")
-
-# Plot the density plot comparing observed vs calculated settling velocities
-ggplot(obs_calc_long, aes(x = Settling_Velocity, fill = Type)) + 
-  geom_density(alpha = 0.5, color = "black") +  # alpha for transparency
-  labs(title = "Density Plot of Observed vs. Calculated Settling Velocities",
-       x = "Settling Velocity (m/s)",
-       y = "Density") +
-  scale_fill_manual(values = c("blue", "red"), labels = c("Observed", "Calculated")) +
-  theme_minimal()
-
-```
 
